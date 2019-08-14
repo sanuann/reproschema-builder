@@ -225,8 +225,10 @@ function processRow(form, data){
             }
 
             // decode html fields
-            else if ((schemaMap[current_key] === 'question' || schemaMap[current_key] ==='schema:description') && data[current_key] !== '') {
+            else if ((schemaMap[current_key] === 'question' || schemaMap[current_key] ==='schema:description'
+                || schemaMap[current_key] === 'preamble') && data[current_key] !== '') {
                 let questions = parseHtml(data[current_key]);
+                console.log(231, form, schemaMap[current_key], questions);
                 rowData[schemaMap[current_key]] = questions;
             }
             // non-nested schema elements
@@ -235,9 +237,9 @@ function processRow(form, data){
         }
         // insert non-existing mapping as is for now
         // TODO: check with satra if this is okay
-        else if (current_key !== 'Form Name') {
-            rowData[camelcase(current_key)] = data[current_key];
-        }
+        // else if (current_key !== 'Form Name') {
+        //     rowData[camelcase(current_key)] = data[current_key];
+        // }
         // todo: requiredValue - should be true or false (instead of y or n)
         // todo: what does "textValidationTypeOrShowSliderNumber": "number" mean along with inputType: "text" ?
         // text with no value in validation column is -- text inputType
