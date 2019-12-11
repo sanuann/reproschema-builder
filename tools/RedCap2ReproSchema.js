@@ -1,14 +1,17 @@
 //User inputs: these are specific to your protocol, fill out before using the script
 
 //1. your protocol name, use underscore for spaces, avoid special characters
-const protocolName = "your_protocol_name"
+const protocolName = "protocol_name"
 
-//2. copy/paste the URL of the github repo where you are hosting the schema files (make sure this is the raw.githubusercontent.com link)
-const yourRepoURL = "https://raw.githubusercontent.com/{userName}/{repoName}/{branchName}/"
+//2. create your raw github repo URL
+const userName = 'userName'
+const repoName = 'repoName'
+const branchName = 'branchName'
+
+let yourRepoURL = `https://raw.githubusercontent.com/${userName}/${repoName}/${branchName}`
 
 //3. add a description to your protocol
 let protocolDescription = "Description for your protocol"
-
 
 
 /* ************ Constants **************************************************** */
