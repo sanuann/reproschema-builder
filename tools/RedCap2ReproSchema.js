@@ -9,14 +9,6 @@ const yourRepoURL = "https://raw.githubusercontent.com/{userName}/{repoName}/{br
 //3. add a description to your protocol
 let protocolDescription = "Description for your protocol"
 
-//4. give display names to your activities
-let activityDisplayName = {
-    "yourActivity1": "Activity 1 Display Name",
-    "yourActivity2": "Activity 2 Display Name",
-    //etc
-};
-
-
 
 
 /* ************ Constants **************************************************** */
@@ -30,6 +22,7 @@ const HTMLParser =  require ('node-html-parser');
 const schemaMap = {
     "Identifier?": "@id",
     "Variable / Field Name": "skos:altLabel",
+    "Form Display Name": "skos:prefLabel",
     "Field Note": "schema:description",
     "Section Header": "preamble", // todo: check this
     "Field Label": "question",
@@ -41,6 +34,7 @@ const schemaMap = {
     "Branching Logic (Show field only if...)": "visibility",
     "multipleChoice": "multipleChoice",
     "responseType": "@type"
+
 };
 
 const inputTypeMap = {
@@ -179,6 +173,8 @@ function processRow(form, data){
     let ui = {};
     let rspObj = {};
     let choiceList = [];
+   
+
     rowData['@context'] = [schemaContextUrl];
     rowData['@type'] = 'reproschema:Field';
 
@@ -451,7 +447,6 @@ function createProtocolSchema(protocolName, protocolContextUrl) {
         "ui": {
             "order": protocolOrder,
             "shuffle": false,
-            "activity_display_name": activityDisplayName,
             "visibility": protocolVisibilityObj
         }
     };
