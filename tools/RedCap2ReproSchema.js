@@ -22,7 +22,7 @@ const HTMLParser =  require ('node-html-parser');
 const schemaMap = {
     "Identifier?": "@id",
     "Variable / Field Name": "skos:altLabel",
-    "Form Display Name": "skos:prefLabel",
+    "Item Display Name": "skos:prefLabel",
     "Field Note": "schema:description",
     "Section Header": "preamble", // todo: check this
     "Field Label": "question",
@@ -36,6 +36,7 @@ const schemaMap = {
     "responseType": "@type"
 
 };
+
 
 const inputTypeMap = {
     "calc": "number",
@@ -106,6 +107,9 @@ csv
             scoresObj = {};
             visibilityObj = {};
             variableMap = [];
+            //console.log(fieldList[0]['Form Display Name']);
+            activityDisplayName = fieldList[0]['Form Display Name'];
+            activityDescription = fieldList[0]['Form Note'];
             fieldList.forEach( field => {
                 if(languages.length === 0){
                     languages = parseLanguageIsoCodes(field['Field Label']);
@@ -397,9 +401,9 @@ function createFormSchema(form, formContextUrl) {
         "@context": [schemaContextUrl, formContextUrl],
         "@type": "reproschema:Activity",
         "@id": `${form}_schema`,
-        "skos:prefLabel": `${form }`,
+        "skos:prefLabel": activityDisplayName,
         "skos:altLabel": `${form}_schema`,
-        "schema:description": `${form}`,
+        "schema:description": activityDescription,
         "schema:schemaVersion": "0.0.1",
         "schema:version": "0.0.1",
         // todo: preamble: Field Type = descriptive represents preamble in the CSV file., it also has branching logic. so should preamble be an item in our schema?
