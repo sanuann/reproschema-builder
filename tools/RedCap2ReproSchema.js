@@ -1,7 +1,10 @@
 //User inputs: these are specific to your protocol, fill out before using the script
 
-//1. your protocol name, use underscore for spaces, avoid special characters
+//1. your protocol id: use underscore for spaces, avoid special characters. The display name is the one that will show up in the app, this will be parsed as string.
 const protocolName = "protocol_name"
+
+//2. your protocol display name: this will show up in the app and be parsed as a string
+const protocolDisplayName = "Your protocol display name"
 
 //2. create your raw github repo URL
 const userName = 'userName'
@@ -444,7 +447,7 @@ function createProtocolSchema(protocolName, protocolContextUrl) {
         "@context": [schemaContextUrl, protocolContextUrl],
         "@type": "reproschema:ActivitySet",
         "@id": `${protocolName}_schema`,
-        "skos:prefLabel": 'Daily Diary Card',
+        "skos:prefLabel": protocolDisplayName,
         "skos:altLabel": `${protocolName}_schema`,
         "schema:description": protocolDescription,
         "schema:schemaVersion": "0.0.1",
