@@ -16,6 +16,8 @@ let yourRepoURL = `https://raw.githubusercontent.com/${userName}/${repoName}/${b
 //3. add a description to your protocol
 let protocolDescription = "Description for your protocol"
 
+//4. where are you hosting your images? For example: openmoji
+let imagePath = 'https://raw.githubusercontent.com/hfg-gmuend/openmoji/master/color/618x618/'
 
 /* ************ Constants **************************************************** */
 const csv = require('fast-csv');
@@ -235,7 +237,7 @@ function processRow(form, data){
             //parse minVal
             else if (schemaMap[current_key] === 'schema:minValue' && data[current_key] !== '') {
 
-                // split string wrt '|' to get each choice
+                
                 let minValVal = (data[current_key]);
               
                 // insert 'multiplechoices' key inside responseOptions of the item
@@ -251,7 +253,7 @@ function processRow(form, data){
             //parse maxVal
             else if (schemaMap[current_key] === 'schema:maxValue' && data[current_key] !== '') {
 
-                // split string wrt '|' to get each choice
+                
                 let maxValVal = (data[current_key]);
               
                 // insert 'multiplechoices' key inside responseOptions of the item
@@ -287,12 +289,22 @@ function processRow(form, data){
                 c.forEach(ch => { // ch = { value, name}
                     let choiceObj = {};
                     let cs = ch.split(', ');
-                    // create name and value pair for each choice option
-                    choiceObj['schema:value'] = parseInt(cs[0]);
-                    let cnameList = cs[1];
-                    choiceObj['schema:name'] = cnameList;
-                    choiceObj['@type'] = "schema:option";
-                    choiceList.push(choiceObj);
+                    // create name and value pair + image link for each choice option
+                    if (cs.length === 3) {
+                        choiceObj['schema:value'] = parseInt(cs[0]);
+                        let cnameList = cs[1];
+                        choiceObj['schema:name'] = cnameList;
+                        choiceObj['@type'] = "schema:option";
+                        choiceObj['schema:image'] = imagePath + cs[2] + '.png';
+                        choiceList.push(choiceObj);
+                    } else {
+                    // for no image, create name and value pair for each choice option
+                        choiceObj['schema:value'] = parseInt(cs[0]);
+                        let cnameList = cs[1];
+                        choiceObj['schema:name'] = cnameList;
+                        choiceObj['@type'] = "schema:option";
+                        choiceList.push(choiceObj);
+                    }
 
                 });
                 // insert 'choices' key inside responseOptions of the item
