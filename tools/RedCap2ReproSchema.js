@@ -35,6 +35,7 @@ const schemaMap = {
     "Section Header": "preamble", // todo: check this
     "Field Label": "question",
     "Field Type": "inputType",
+    "Allow": "allow",
     "Required Field?": "requiredValue",
     "minVal": "schema:minValue",
     "maxVal": "schema:maxValue",
@@ -54,7 +55,7 @@ const inputTypeMap = {
     "notes": "text"
 };
 
-const uiList = ['inputType', 'shuffle'];
+const uiList = ['inputType', 'shuffle', 'allow'];
 const responseList = ['type', 'requiredValue'];
 const defaultLanguage = 'en';
 const datas = {};
@@ -201,8 +202,25 @@ function processRow(form, data){
         // get schema key from mapping.json corresponding to current_key
         if (schemaMap.hasOwnProperty(current_key)) {
 
+            //Parse 'allow' array
+            if (schemaMap[current_key] === 'allow' && data[current_key] !== '') {
+                let uiKey = schemaMap[current_key];
+                let uiValue = data[current_key].split(', ');
+                //uiValue.forEach(val => {
+                //    allowList.push(val)
+                //})
+                // add object to ui element of the item
+                if (rowData.hasOwnProperty('ui')) {
+                    rowData.ui[uiKey] = uiValue; // append to existing ui object
+                }
+                else { // create new ui object
+                    ui[uiKey] = uiValue;
+                    rowData['ui'] = ui;
+                }
+            }
+
             // check all ui elements to be nested under 'ui' key of the item
-            if (uiList.indexOf(schemaMap[current_key]) > -1) {
+            else if (uiList.indexOf(schemaMap[current_key]) > -1 && data[current_key] !== '') {
                 let uiKey = schemaMap[current_key];
                 let uiValue = data[current_key];
                 if (inputTypeMap.hasOwnProperty(data[current_key])) { // map Field type to supported inputTypes
