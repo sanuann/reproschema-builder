@@ -1,6 +1,6 @@
 # reproschema-builder
 
-Create mindlogger applet from a CSV table:
+Create protocol from a CSV table:
 
 1. Convert any survey into the format of the data dictionary template below:
 
