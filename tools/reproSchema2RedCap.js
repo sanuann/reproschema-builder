@@ -25,6 +25,18 @@ const csvWriter = createCsvWriter({
     header: [
         {id: 'var_name', title: 'Variable / Field Name'},
         {id: 'activity', title: 'Form Name'},
+        {id: 'section', title: 'Section Header'},
+        {id: 'field_type', title: 'Field Type'},
+        {id: 'field_label', title: 'Field Label'},
+        {id: 'choices', title: 'Choices, Calculations, OR Slider Labels'},
+        {id: 'field_notes', title: 'Field Note'},
+        {id: 'val_type_OR_slider', title: 'Form Name'},
+        {id: 'val_min', title: 'Form Name'},
+        {id: 'val_max', title: 'Form Name'},
+        {id: 'identifier', title: 'Form Name'},
+        {id: 'visibility', title: 'Branching Logic (Show field only if...)'},
+        {id: 'required', title: 'Required Field?'},
+
     ]
 });
 let csvData = [];
@@ -43,9 +55,28 @@ activityList.forEach(function (activity) {
     // console.log(43, activity);
     parsedJSONActivity = JSON.parse(fs.readFileSync(`./activities/${activity}/${activity}_schema`, 'utf8'));
     (parsedJSONActivity.ui.order).forEach(function (item) {
+        itemJSON = JSON.parse(fs.readFileSync(`./activities/${activity}/items/${item}`, 'utf8'));
+        // console.log(47, itemJSON);
+        let itemChoices;
+        if (itemJSON.responseOptions.choices) {
+            itemChoices = '';
+            (itemJSON.responseOptions.choices).forEach(function (ch) {
+                // console.log(62, itemJSON['@id'], ch['schema:value'], ch['schema:name']);
+                if (itemChoices) {
+                    itemChoices = itemChoices.concat(' | ', ch['schema:value'], ', ', ch['schema:name']);
+                    // console.log(66, itemChoices);
+                }
+                else itemChoices = itemChoices.concat(ch['schema:value'], ', ', ch['schema:name']);
+            });
+            // console.log(69, itemChoices);
+        }
         csvData.push({
-          var_name: item,
-          activity: activity
+            var_name: itemJSON['@id'],
+            activity: activity,
+            field_type: itemJSON.ui.inputType,
+            field_label: itemJSON.question.en, // for now returns only the english
+            required: itemJSON.responseOptions.requiredValue,
+            choices: itemChoices
         });
     });
 });
@@ -63,18 +94,3 @@ csvWriter
 //         console.log(60, err);
 //     });
 
-// function getAllFiles(dirPath, arrayOfFiles) {
-//   files = fs.readdirSync(dirPath);
-//
-//   arrayOfFiles = arrayOfFiles || [];
-//
-//   files.forEach(function(file) {
-//     if (fs.statSync(dirPath + "/" + file).isDirectory()) {
-//       arrayOfFiles = getAllFiles(dirPath + "/" + file, arrayOfFiles)
-//     } else {
-//       arrayOfFiles.push(path.join(__dirname, dirPath, "/", file))
-//     }
-//   })
-//
-//   return arrayOfFiles
-// }
