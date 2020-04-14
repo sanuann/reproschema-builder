@@ -18,6 +18,7 @@ const schemaMap = {
 };
 
 const fs = require('fs');
+const _ = require('lodash');
 const converter = require('json-2-csv');
 const createCsvWriter = require('csv-writer').createObjectCsvWriter;
 const csvWriter = createCsvWriter({
@@ -57,8 +58,12 @@ activityList.forEach(function (activity) {
     (parsedJSONActivity.ui.order).forEach(function (item) {
         itemJSON = JSON.parse(fs.readFileSync(`./activities/${activity}/items/${item}`, 'utf8'));
         let rowData = {};
-        if (parsedJSONActivity.scoringLogic && parsedJSONActivity.scoringLogic[itemJSON['@id']]) { // refactor acc to new schema
-            rowData.choices = parsedJSONActivity.scoringLogic[itemJSON['@id']];
+        if (!_.isEmpty((parsedJSONActivity.scoringLogic))) { // refactor acc to new schema
+            const matched_ScoreObj = _.filter(parsedJSONActivity.scoringLogic, scoreObj => scoreObj.variableName === itemJSON['@id']);
+            if (!_.isEmpty(matched_ScoreObj)) {
+                rowData.choices = matched_ScoreObj[0].jsExpression;
+                // console.log(63, matched_ScoreObj[0].jsExpression);
+            }
         }
         rowData = find_Ftype_and_colH(itemJSON, rowData);
 
