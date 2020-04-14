@@ -1,23 +1,23 @@
 //User inputs: these are specific to your protocol, fill out before using the script
 
 //1. your protocol id: use underscore for spaces, avoid special characters. The display name is the one that will show up in the app, this will be parsed as string.
-const protocolName = "protocol_name"
+const protocolName = "protocol_name";
 
 //2. your protocol display name: this will show up in the app and be parsed as a string
-const protocolDisplayName = "Your protocol display name"
+const protocolDisplayName = "Your protocol display name";
 
 //2. create your raw github repo URL
-const userName = 'userName'
-const repoName = 'repoName'
-const branchName = 'branchName'
+const userName = 'sanuann';
+const repoName = 'reproschema';
+const branchName = 'master';
 
-let yourRepoURL = `https://raw.githubusercontent.com/${userName}/${repoName}/${branchName}`
+let yourRepoURL = `https://raw.githubusercontent.com/${userName}/${repoName}/${branchName}`;
 
 //3. add a description to your protocol
-let protocolDescription = "Description for your protocol"
+let protocolDescription = "Description for your protocol";
 
 //4. where are you hosting your images? For example: openmoji
-let imagePath = 'https://raw.githubusercontent.com/hfg-gmuend/openmoji/master/color/618x618/'
+let imagePath = 'https://raw.githubusercontent.com/hfg-gmuend/openmoji/master/color/618x618/';
 
 /* ************ Constants **************************************************** */
 const csv = require('fast-csv');
@@ -29,18 +29,18 @@ const HTMLParser =  require ('node-html-parser');
 
 const schemaMap = {
     "Identifier?": "@id",
-    "Variable / Field Name": "skos:altLabel",
+    "Variable / Field Name": "skos:altLabel", // column A
     "Item Display Name": "skos:prefLabel",
-    "Field Note": "schema:description",
-    "Section Header": "preamble", // todo: check this
-    "Field Label": "question",
-    "Field Type": "inputType",
+    "Field Note": "schema:description", // column G
+    "Section Header": "preamble", // todo: check this // column C
+    "Field Label": "question", // column E
+    "Field Type": "inputType", // column D
     "Allow": "allow",
     "Required Field?": "requiredValue",
-    "minVal": "schema:minValue",
-    "maxVal": "schema:maxValue",
-    "Choices, Calculations, OR Slider Labels": "choices",
-    "Branching Logic (Show field only if...)": "visibility",
+    "Text Validation Min": "schema:minValue",
+    "Text Validation Max": "schema:maxValue",
+    "Choices, Calculations, OR Slider Labels": "choices", // column F
+    "Branching Logic (Show field only if...)": "visibility", // column L
     "multipleChoice": "multipleChoice",
     "responseType": "@type"
 
@@ -67,7 +67,8 @@ if (process.argv.length < 3) {
     console.log('Usage: node ' + process.argv[1] + 'your_data_dic.csv');
     process.exit(1);
 }
-// Read the file.
+
+// Read the CSV file.
 let csvPath = process.argv[2];
 let readStream = fs.createReadStream(csvPath).setEncoding('utf-8');
 
@@ -75,7 +76,7 @@ let schemaContextUrl = 'https://raw.githubusercontent.com/ReproNim/reproschema/m
 let order = {};
 let visibilityObj = {};
 let scoresObj = {};
-let blObj = [];
+let scoresList = [];
 let languages = [];
 let variableMap = [];
 let protocolVariableMap = [];
@@ -110,6 +111,7 @@ csv
     .on('end', function () {
         //console.log(66, datas);
         Object.keys(datas).forEach( form => {
+            scoresList = [];
             let fieldList = datas[form]; // all items of an activity
             createFormContextSchema(form, fieldList); // create context for each activity
             let formContextUrl = `${yourRepoURL}/activities/${form}/${form}_context`;
@@ -129,7 +131,7 @@ csv
         });
             //create protocol context
             let activityList = Object.keys(datas);
-            let protocolContextUrl = `${yourRepoURL}/protocols/${protocolName}/${protocolName}_context`
+            let protocolContextUrl = `${yourRepoURL}/protocols/${protocolName}/${protocolName}_context`;
             createProtocolContext(activityList);
             
             //create protocol schema
@@ -190,6 +192,7 @@ function processRow(form, data){
 
     rowData['@context'] = [schemaContextUrl];
     rowData['@type'] = 'reproschema:Field';
+    rowData['@id'] = data['Variable / Field Name'];
 
     // map Choices, Calculations, OR Slider Labels column to choices or scoringLogic key
     if (data['Field Type'] === 'calc')
@@ -197,6 +200,7 @@ function processRow(form, data){
     else schemaMap['Choices, Calculations, OR Slider Labels'] = 'choices';
 
     //console.log(110, schemaMap);
+    // console.log(202, form, data);
     Object.keys(data).forEach(current_key => {
 
         // get schema key from mapping.json corresponding to current_key
@@ -225,6 +229,12 @@ function processRow(form, data){
                 let uiValue = data[current_key];
                 if (inputTypeMap.hasOwnProperty(data[current_key])) { // map Field type to supported inputTypes
                     uiValue = inputTypeMap[data[current_key]];
+                }
+                else if ((uiKey === 'inputType') && (uiValue === 'text') && data['Text Validation Type OR Show Slider Number'] === 'number') {
+                    uiValue = 'integer';
+                }
+                else if ((uiKey === 'inputType') && (uiValue === 'text') && data['Text Validation Type OR Show Slider Number'] === 'date_mdy') {
+                    uiValue = 'date';
                 }
                 // add object to ui element of the item
                 if (rowData.hasOwnProperty('ui')) {
@@ -366,7 +376,9 @@ function processRow(form, data){
                 condition = condition.replace(/\ or\ /g, " || ");
                 re = RegExp(/\[([^\]]*)\]/g);
                 condition = condition.replace(re, " $1 ");
-                scoresObj = { [data['Variable / Field Name']]: condition };
+
+                scoresObj = { "variableName": data['Variable / Field Name'], "jsExpression": condition };
+                scoresList.push(scoresObj);
             }
 
             // branching logic
@@ -391,7 +403,7 @@ function processRow(form, data){
             else if ((schemaMap[current_key] === 'question' || schemaMap[current_key] ==='schema:description'
                 || schemaMap[current_key] === 'preamble') && data[current_key] !== '') {
                 let questions = parseHtml(data[current_key]);
-                console.log(231, form, schemaMap[current_key], questions);
+                // console.log(231, form, schemaMap[current_key], questions);
                 rowData[schemaMap[current_key]] = questions;
             }
             // non-nested schema elements
@@ -443,7 +455,7 @@ function createFormSchema(form, formContextUrl) {
         "schema:schemaVersion": "0.0.1",
         "schema:version": "0.0.1",
         // todo: preamble: Field Type = descriptive represents preamble in the CSV file., it also has branching logic. so should preamble be an item in our schema?
-        "scoringLogic": scoresObj,
+        "scoringLogic": scoresList,
         "variableMap": variableMap,
         "ui": {
             "order": order[form],
