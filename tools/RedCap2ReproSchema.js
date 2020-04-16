@@ -1,7 +1,7 @@
 //User inputs: these are specific to your protocol, fill out before using the script
 
 //1. your protocol id: use underscore for spaces, avoid special characters. The display name is the one that will show up in the app, this will be parsed as string.
-const protocolName = "protocol_name";
+const protocolName = "sc_dd";
 
 //2. your protocol display name: this will show up in the app and be parsed as a string
 const protocolDisplayName = "Your protocol display name";
@@ -22,25 +22,27 @@ let imagePath = 'https://raw.githubusercontent.com/hfg-gmuend/openmoji/master/co
 /* ************ Constants **************************************************** */
 const csv = require('fast-csv');
 const fs = require('fs');
+const _ = require('lodash');
 const shell = require('shelljs');
 const camelcase = require('camelcase');
 const mkdirp = require('mkdirp');
 const HTMLParser =  require ('node-html-parser');
 
 const schemaMap = {
-    "Identifier?": "@id",
-    "Variable / Field Name": "skos:altLabel", // column A
+    "Variable / Field Name": "@id", // column A
     "Item Display Name": "skos:prefLabel",
-    "Field Note": "schema:description", // column G
+    "Field Annotation": "schema:description", // column R
     "Section Header": "preamble", // todo: check this // column C
     "Field Label": "question", // column E
     "Field Type": "inputType", // column D
     "Allow": "allow",
-    "Required Field?": "requiredValue",
-    "Text Validation Min": "schema:minValue",
-    "Text Validation Max": "schema:maxValue",
+    "Required Field?": "requiredValue", //column M
+    "Text Validation Min": "schema:minValue", // column I
+    "Text Validation Max": "schema:maxValue", // column J
     "Choices, Calculations, OR Slider Labels": "choices", // column F
     "Branching Logic (Show field only if...)": "visibility", // column L
+    "Custom Alignment": "customAlignment", // column N
+    "Identifier?": "identifiable", // column K
     "multipleChoice": "multipleChoice",
     "responseType": "@type"
 
@@ -55,8 +57,9 @@ const inputTypeMap = {
     "notes": "text"
 };
 
-const uiList = ['inputType', 'shuffle', 'allow'];
+const uiList = ['inputType', 'shuffle', 'allow', 'customAlignment'];
 const responseList = ['type', 'requiredValue'];
+const additionalNotesList = ['Field Note', 'Question Number (surveys only)'];
 const defaultLanguage = 'en';
 const datas = {};
 
@@ -77,8 +80,10 @@ let order = {};
 let visibilityObj = {};
 let scoresObj = {};
 let scoresList = [];
+let visibilityList = [];
 let languages = [];
 let variableMap = [];
+let matrixList = [];
 let protocolVariableMap = [];
 let protocolVisibilityObj = {};
 let protocolOrder = [];
@@ -112,12 +117,14 @@ csv
         //console.log(66, datas);
         Object.keys(datas).forEach( form => {
             scoresList = [];
+            visibilityList = [];
             let fieldList = datas[form]; // all items of an activity
             createFormContextSchema(form, fieldList); // create context for each activity
             let formContextUrl = `${yourRepoURL}/activities/${form}/${form}_context`;
             scoresObj = {};
             visibilityObj = {};
             variableMap = [];
+            matrixList = [];
             //console.log(fieldList[0]['Form Display Name']);
             activityDisplayName = fieldList[0]['Form Display Name'];
             activityDescription = fieldList[0]['Form Note'];
@@ -137,7 +144,7 @@ csv
             //create protocol schema
             activityList.forEach( activityName => {
             processActivities(activityName);
-            })
+            });
 
             createProtocolSchema(protocolName, protocolContextUrl);
         
@@ -173,7 +180,7 @@ function createProtocolContext(activityList) {
         // define item_x urls to be inserted in context for the corresponding form
         activityOBj[activity] = { "@id": `activity_path:${activity}/${activity}_schema` , "@type": "@id" };
     });
-    protocolContext['@context'] = activityOBj
+    protocolContext['@context'] = activityOBj;
     const pc = JSON.stringify(protocolContext, null, 4);
     fs.writeFile(`protocols/${protocolName}/${protocolName}_context`, pc, function(err) {
         if (err)
@@ -192,19 +199,88 @@ function processRow(form, data){
 
     rowData['@context'] = [schemaContextUrl];
     rowData['@type'] = 'reproschema:Field';
-    rowData['@id'] = data['Variable / Field Name'];
+    // rowData['@id'] = data['Variable / Field Name'];
 
     // map Choices, Calculations, OR Slider Labels column to choices or scoringLogic key
     if (data['Field Type'] === 'calc')
         schemaMap['Choices, Calculations, OR Slider Labels'] = 'scoringLogic';
     else schemaMap['Choices, Calculations, OR Slider Labels'] = 'choices';
 
-    //console.log(110, schemaMap);
-    // console.log(202, form, data);
-    Object.keys(data).forEach(current_key => {
+    // parse Field Type and populate inputType and responseOptions valueType
+    if (data['Field Type']) {
+        let inputType = '';
+        let valueType = '';
+        if (data['Field Type'] === 'text') {
+            if (data['Text Validation Type OR Show Slider Number']) {
+                if (data['Text Validation Type OR Show Slider Number'] === 'number') {
+                inputType = 'integer';
+                valueType = 'xsd:int';
+            }
+                else if ((data['Text Validation Type OR Show Slider Number']).startsWith('date_')) {
+                    inputType = 'date';
+                    valueType = 'xsd:date';
+                }
+                else if (data['Text Validation Type OR Show Slider Number'].startsWith('datetime_')) {
+                    inputType = 'datetime';
+                    valueType = 'datetime';
+                }
+                else if (data['Text Validation Type OR Show Slider Number'].startsWith('time_')) {
+                    inputType = 'time';
+                    valueType = 'xsd:date';
+                }
+                else if (data['Text Validation Type OR Show Slider Number'] === 'email') {
+                    inputType = 'text';
+                    valueType = 'email';
+                }
+                else if (data['Text Validation Type OR Show Slider Number'] === 'phone') {
+                    inputType = 'text';
+                    valueType = 'phone';
+                }
+            }
+            else {
+                inputType = 'text';
+                valueType = 'xsd:string';
+            }
+        }
+        else if (data['Field Type'] === 'notes') {
+            inputType = 'text';
+            valueType = 'xsd:string';
+        }
+        else if (data['Field Type'] === 'calc') {
+            inputType = 'float';
+            valueType = 'float';
+        }
+        else if (data['Field Type'] === 'dropdown') {
+            inputType = 'select';
+            valueType = '';
+        }
+        else if (data['Field Type'] === 'radio') {
+            inputType = 'radio';
+            multipleChoice = false;
+            valueType = '';
+        }
+        else if (data['Field Type'] === 'checkbox') {
+            inputType = 'radio';
+            valueType = 'radio';
+            multipleChoice = true;
+        }
+        else if (data['Field Type'] === 'slider') {
+            inputType = 'slider';
+            valueType = 'slider';
+        }
+        else if (data['Field Type'] === 'file upload') {
+            inputType = 'upload';
+        }
+        else if (data['Field Type'] === 'descriptive') {
+            inputType = 'static';
+        }
+        rowData['ui'] = {'inputType': inputType};
+        if (valueType) {
+            rowData['responseOptions'] = {'valueType': valueType};
+        }
+    }
 
-        // get schema key from mapping.json corresponding to current_key
-        if (schemaMap.hasOwnProperty(current_key)) {
+    Object.keys(data).forEach(current_key => {
 
             //Parse 'allow' array
             if (schemaMap[current_key] === 'allow' && data[current_key] !== '') {
@@ -230,12 +306,15 @@ function processRow(form, data){
                 if (inputTypeMap.hasOwnProperty(data[current_key])) { // map Field type to supported inputTypes
                     uiValue = inputTypeMap[data[current_key]];
                 }
-                else if ((uiKey === 'inputType') && (uiValue === 'text') && data['Text Validation Type OR Show Slider Number'] === 'number') {
-                    uiValue = 'integer';
-                }
-                else if ((uiKey === 'inputType') && (uiValue === 'text') && data['Text Validation Type OR Show Slider Number'] === 'date_mdy') {
-                    uiValue = 'date';
-                }
+                // else if ((uiKey === 'inputType') && (uiValue === 'text') && data['Text Validation Type OR Show Slider Number'] === 'number') {
+                //     uiValue = 'integer';
+                //     valueType = 'xsd:int'
+                // }
+                // else if ((uiKey === 'inputType') && (uiValue === 'text') && data['Text Validation Type OR Show Slider Number'] === 'date_mdy') {
+                //     uiValue = 'date';
+                //     valueType = 'xsd:date';
+                // }
+
                 // add object to ui element of the item
                 if (rowData.hasOwnProperty('ui')) {
                     rowData.ui[uiKey] = uiValue; // append to existing ui object
@@ -250,7 +329,7 @@ function processRow(form, data){
             else if (schemaMap[current_key] === 'multipleChoice' && data[current_key] !== '') {
 
                 // split string wrt '|' to get each choice
-                let multipleChoiceVal = (data[current_key]) === '1' ? true:false;
+                let multipleChoiceVal = (data[current_key]) === '1';
               
                 // insert 'multiplechoices' key inside responseOptions of the item
                 if (rowData.hasOwnProperty('responseOptions')) {
@@ -280,10 +359,7 @@ function processRow(form, data){
 
             //parse maxVal
             else if (schemaMap[current_key] === 'schema:maxValue' && data[current_key] !== '') {
-
-                
                 let maxValVal = (data[current_key]);
-              
                 // insert 'multiplechoices' key inside responseOptions of the item
                 if (rowData.hasOwnProperty('responseOptions')) {
                     rowData.responseOptions[schemaMap[current_key]] = maxValVal;
@@ -347,15 +423,21 @@ function processRow(form, data){
 
             // check all other response elements to be nested under 'responseOptions' key
             else if (responseList.indexOf(schemaMap[current_key]) > -1) {
-                if (rowData.hasOwnProperty('responseOptions')) {
-                    rowData.responseOptions[schemaMap[current_key]] = data[current_key];
+                if (schemaMap[current_key] === 'requiredValue' && data[current_key]) {
+                    if (data[current_key] === 'y') {
+                        data[current_key] = true
+                    }
                 }
-                else {
-                    rspObj[schemaMap[current_key]] = data[current_key];
-                    rowData['responseOptions'] = rspObj;
+                if (data[current_key]) { // if value exists in the column then write it to schema
+                    if (rowData.hasOwnProperty('responseOptions')) {
+                        rowData.responseOptions[schemaMap[current_key]] = data[current_key];
+                    }
+                    else {
+                        rspObj[schemaMap[current_key]] = data[current_key];
+                        rowData['responseOptions'] = rspObj;
+                    }
                 }
             }
-
             // scoring logic
             else if (schemaMap[current_key] === 'scoringLogic' && data[current_key] !== '') {
                 // set ui.hidden for the item to true by default
@@ -396,7 +478,9 @@ function processRow(form, data){
                     re = RegExp(/\[([^\]]*)\]/g);
                     condition = condition.replace(re, "$1");
                 }
-                visibilityObj[[data['Variable / Field Name']]] = condition;
+                visibilityObj = { "variableName": data['Variable / Field Name'], "isVis": condition };
+                visibilityList.push(visibilityObj);
+                //visibilityObj[[data['Variable / Field Name']]] = condition;
             }
 
             // decode html fields
@@ -406,16 +490,30 @@ function processRow(form, data){
                 // console.log(231, form, schemaMap[current_key], questions);
                 rowData[schemaMap[current_key]] = questions;
             }
-            // non-nested schema elements
-            else if (data[current_key] !== '')
-                rowData[schemaMap[current_key]] = data[current_key];
-        }
-        // insert non-existing mapping as is for now
-        // TODO: check with satra if this is okay
-        // else if (current_key !== 'Form Name') {
-        //     rowData[camelcase(current_key)] = data[current_key];
-        // }
-        // todo: requiredValue - should be true or false (instead of y or n)
+
+            else if (current_key === 'Identifier?' && data[current_key]) {
+                let identifierVal = false;
+                if (data[current_key] === 'y') {
+                    identifierVal = true
+                }
+                // TODO: leave "legalStandard" to the user as an optional flag
+                // if the user says its hipaa use that. if not leave it as "unknown"
+                rowData[schemaMap[current_key]] = [ {"legalStandard": "unknown", "isIdentifier": identifierVal }];
+            }
+
+            else if ((additionalNotesList.indexOf(current_key) > -1) && data[current_key]) {
+                console.log(436, current_key, data[current_key]);
+                let notesObj = {"source": "redcap", "column": current_key, "value": data[current_key]};
+                if (rowData.hasOwnProperty('additionalNotesObj')) {
+                    (rowData.additionalNotesObj).push(notesObj);
+                    }
+                else {
+                    rowData['additionalNotesObj'] = [];
+                    (rowData['additionalNotesObj']).push(notesObj);
+                }
+            }
+
+
         // todo: what does "textValidationTypeOrShowSliderNumber": "number" mean along with inputType: "text" ?
         // text with no value in validation column is -- text inputType
         // text with value in validation as "number" is of inputType - integer
@@ -427,6 +525,10 @@ function processRow(form, data){
     // add field to variableMap
     variableMap.push({"variableName": field_name, "isAbout": field_name});
 
+    // add matrix info to matrixList
+    if (data['Matrix Group Name'] || data['Matrix Ranking?']) {
+        matrixList.push({"variableName": field_name, "matrixGroupName": data['Matrix Group Name'], "matrixRanking": data['Matrix Ranking?']});
+    }
     // check if 'order' object exists for the activity and add the items to the respective order array
     if (!order[form]) {
         order[form] = [];
@@ -455,14 +557,19 @@ function createFormSchema(form, formContextUrl) {
         "schema:schemaVersion": "0.0.1",
         "schema:version": "0.0.1",
         // todo: preamble: Field Type = descriptive represents preamble in the CSV file., it also has branching logic. so should preamble be an item in our schema?
-        "scoringLogic": scoresList,
         "variableMap": variableMap,
         "ui": {
             "order": order[form],
             "shuffle": false,
-            "visibility": visibilityObj
+            "visibility": visibilityList
         }
     };
+    if (!_.isEmpty(matrixList)) {
+        jsonLD['matrixInfo'] = matrixList;
+    }
+    if (!_.isEmpty(scoresList)) {
+        jsonLD['scoringLogic'] = scoresList;
+    }
     const op = JSON.stringify(jsonLD, null, 4);
     // console.log(269, jsonLD);
     fs.writeFile(`activities/${form}/${form}_schema`, op, function (err) {
