@@ -30,15 +30,15 @@ const HTMLParser =  require ('node-html-parser');
 
 const schemaMap = {
     "Variable / Field Name": "@id", // column A
-    "Item Display Name": "skos:prefLabel",
-    "Field Annotation": "schema:description", // column R
+    "Item Display Name": "prefLabel",
+    "Field Annotation": "description", // column R
     "Section Header": "preamble", // todo: check this // column C
     "Field Label": "question", // column E
     "Field Type": "inputType", // column D
     "Allow": "allow",
     "Required Field?": "requiredValue", //column M
-    "Text Validation Min": "schema:minValue", // column I
-    "Text Validation Max": "schema:maxValue", // column J
+    "Text Validation Min": "minValue", // column I
+    "Text Validation Max": "maxValue", // column J
     "Choices, Calculations, OR Slider Labels": "choices", // column F
     "Branching Logic (Show field only if...)": "visibility", // column L
     "Custom Alignment": "customAlignment", // column N
@@ -58,10 +58,14 @@ const inputTypeMap = {
 };
 
 const uiList = ['inputType', 'shuffle', 'allow', 'customAlignment'];
-const responseList = ['type', 'requiredValue'];
+const responseList = ['valueType', 'minValue', 'maxValue', 'requiredValue', 'multipleChoice'];
 const additionalNotesList = ['Field Note', 'Question Number (surveys only)'];
 const defaultLanguage = 'en';
 const datas = {};
+const sectionOrderObj = {};
+const sectionVariableMap = {};
+const sectionVisObj = {};
+const preambleObj = {};
 
 /* **************************************************************************************** */
 
@@ -75,8 +79,10 @@ if (process.argv.length < 3) {
 let csvPath = process.argv[2];
 let readStream = fs.createReadStream(csvPath).setEncoding('utf-8');
 
-let schemaContextUrl = 'https://raw.githubusercontent.com/ReproNim/reproschema/master/contexts/generic';
-let order = {};
+let schemaContextUrl = 'https://raw.githubusercontent.com/ReproNim/reproschema/1.0.0-rc4/contexts/generic';
+let order = [];
+let blList = [];
+let slList = [];
 let visibilityObj = {};
 let scoresObj = {};
 let scoresList = [];
@@ -117,45 +123,67 @@ csv
         //console.log(66, datas);
         Object.keys(datas).forEach( form => {
             scoresList = [];
+            order = [];
+            slList = [];
+            blList = [];
             visibilityList = [];
-            let fieldList = datas[form]; // all items of an activity
-            createFormContextSchema(form, fieldList); // create context for each activity
-            let formContextUrl = `${yourRepoURL}/activities/${form}/${form}_context`;
+            let rowList = datas[form]; // all items of an activity
+            // createFormContextSchema(form, rowList); // create context for each activity
+            // let formContextUrl = `${yourRepoURL}/activities/${form}/${form}_context`;
             scoresObj = {};
             visibilityObj = {};
             variableMap = [];
             matrixList = [];
-            //console.log(fieldList[0]['Form Display Name']);
-            activityDisplayName = fieldList[0]['Form Display Name'];
-            activityDescription = fieldList[0]['Form Note'];
-            fieldList.forEach( field => {
+            //console.log(rowList[0]['Form Display Name']);
+            activityDisplayName = rowList[0]['Form Name'];
+            activityDescription = rowList[0]['Form Note'];
+            rowList.forEach( field => {
                 if(languages.length === 0){
                     languages = parseLanguageIsoCodes(field['Field Label']);
                 }
+                let field_name = field['Variable / Field Name'];
+                // add visibility of items
+                visibilityObj = processVisibility(field);
+                blList.push(visibilityObj);
+
+                // add field to variableMap
+                variableMap.push({"variableName": field_name, "isAbout": `items/${field_name}`});
+
+                // add matrix info to matrixList
+                if (field['Matrix Group Name'] || field['Matrix Ranking?']) {
+                    matrixList.push({"variableName": field_name, "matrixGroupName": field['Matrix Group Name'], "matrixRanking": field['Matrix' +
+                        ' Ranking?']});
+                }
+                // check if 'order' object exists for the activity and add the items to the respective order array
+                if (!order[form]) {
+                    order[form] = [];
+                    order[form].push(`items/${field_name}`);
+                }
+                else order[form].push(`items/${field_name}`);
                 processRow(form, field);
             });
-            createFormSchema(form, formContextUrl);
+            createFormSchema(form);
         });
             //create protocol context
             let activityList = Object.keys(datas);
-            let protocolContextUrl = `${yourRepoURL}/protocols/${protocolName}/${protocolName}_context`;
-            createProtocolContext(activityList);
+            // let protocolContextUrl = `${yourRepoURL}/protocols/${protocolName}/${protocolName}_context`;
+            // createProtocolContext(activityList);
             
             //create protocol schema
             activityList.forEach( activityName => {
             processActivities(activityName);
             });
 
-            createProtocolSchema(protocolName, protocolContextUrl);
+            createProtocolSchema(protocolName);
         
     });
 
-function createFormContextSchema(form, fieldList) {
+function createFormContextSchema(form, rowList) {
     // define context file for each form
     let itemOBj = { "@version": 1.1 };
     let formContext = {};
     itemOBj[form] = `${yourRepoURL}/activities/${form}/items/`;
-    fieldList.forEach( field => {
+    rowList.forEach( field => {
         let field_name = field['Variable / Field Name'];
         // define item_x urls to be inserted in context for the corresponding form
         itemOBj[field_name] = { "@id": `${form}:${field_name}` , "@type": "@id" };
@@ -189,6 +217,25 @@ function createProtocolContext(activityList) {
     });
 }
 
+function processVisibility(data) {
+    let condition = true; // default visibility value for fields
+    if (data['Branching Logic (Show field only if...)']) {
+        // let condition = true;
+        condition = data['Branching Logic (Show field only if...)'];
+        // normalize the condition field to resemble javascript
+        let re = RegExp(/\(([0-9]*)\)/g);
+        condition = condition.replace(re, "___$1");
+        condition = condition.replace(/([^>|<])=/g, "$1 ==");
+        condition = condition.replace(/\ and\ /g, " && ");
+        condition = condition.replace(/\ or\ /g, " || ");
+        re = RegExp(/\[([^\]]*)\]/g);
+        condition = condition.replace(re, " $1 ");
+    }
+    visibilityObj = { "variableName": data['Variable / Field Name'],
+        "isAbout": `items/${data['Variable / Field Name']}`,
+        "isVis": condition };
+    return visibilityObj;
+}
 
 function processRow(form, data){
     let rowData = {};
@@ -197,7 +244,7 @@ function processRow(form, data){
     let choiceList = [];
    
 
-    rowData['@context'] = [schemaContextUrl];
+    rowData['@context'] = schemaContextUrl;
     rowData['@type'] = 'reproschema:Field';
     // rowData['@id'] = data['Variable / Field Name'];
 
@@ -522,20 +569,6 @@ function processRow(form, data){
     });
     const field_name = data['Variable / Field Name'];
 
-    // add field to variableMap
-    variableMap.push({"variableName": field_name, "isAbout": field_name});
-
-    // add matrix info to matrixList
-    if (data['Matrix Group Name'] || data['Matrix Ranking?']) {
-        matrixList.push({"variableName": field_name, "matrixGroupName": data['Matrix Group Name'], "matrixRanking": data['Matrix Ranking?']});
-    }
-    // check if 'order' object exists for the activity and add the items to the respective order array
-    if (!order[form]) {
-        order[form] = [];
-        order[form].push(field_name);
-    }
-    else order[form].push(field_name);
-
     // write to item_x file
     fs.writeFile('activities/' + form + '/items/' + field_name, JSON.stringify(rowData, null, 4), function (err) {
         if (err) {
@@ -545,23 +578,22 @@ function processRow(form, data){
 }
 
 
-function createFormSchema(form, formContextUrl) {
+function createFormSchema(form) {
     // console.log(27, form, visibilityObj);
+    // "skos:altLabel": `${form}_schema`,
     let jsonLD = {
-        "@context": [schemaContextUrl, formContextUrl],
+        "@context": schemaContextUrl,
         "@type": "reproschema:Activity",
         "@id": `${form}_schema`,
-        "skos:prefLabel": activityDisplayName,
-        "skos:altLabel": `${form}_schema`,
-        "schema:description": activityDescription,
-        "schema:schemaVersion": "0.0.1",
-        "schema:version": "0.0.1",
+        "prefLabel": activityDisplayName,
+        "description": activityDescription,
+        "schemaVersion": "1.0.0-rc4",
+        "version": "0.0.1",
         // todo: preamble: Field Type = descriptive represents preamble in the CSV file., it also has branching logic. so should preamble be an item in our schema?
-        "variableMap": variableMap,
         "ui": {
             "order": order[form],
-            "shuffle": false,
-            "visibility": visibilityList
+            "addProperties": blList,
+            "shuffle": false
         }
     };
     if (!_.isEmpty(matrixList)) {
@@ -586,20 +618,20 @@ function processActivities (activityName) {
     protocolVisibilityObj[activityName] = condition;
     
     // add activity to variableMap and Order
-    protocolVariableMap.push({"variableName": activityName, "isAbout": activityName});
+    protocolVariableMap.push({"variableName": activityName, "isAbout": `items/${activityName}`});
     protocolOrder.push(activityName);
 
 }
 
-function createProtocolSchema(protocolName, protocolContextUrl) {
+function createProtocolSchema(protocolName) {
     let protocolSchema = {
-        "@context": [schemaContextUrl, protocolContextUrl],
+        "@context": schemaContextUrl,
         "@type": "reproschema:ActivitySet",
         "@id": `${protocolName}_schema`,
         "skos:prefLabel": protocolDisplayName,
         "skos:altLabel": `${protocolName}_schema`,
         "schema:description": protocolDescription,
-        "schema:schemaVersion": "0.0.1",
+        "schema:schemaVersion": "1.0.0-rc4",
         "schema:version": "0.0.1",
         // todo: preamble: Field Type = descriptive represents preamble in the CSV file., it also has branching logic. so should preamble be an item in our schema?
         "variableMap": protocolVariableMap,
