@@ -25,7 +25,7 @@
     "fast-csv": "^4.3.6",
     "is-html": "^1.1.0",
     "json-2-csv": "^3.6.2",
-    "jsonld": "^3.0.1",
+    "jsonld": "^8.1.0",
     "lodash": "^4.17.19",
     "mkdirp": "^0.5.1",
     "node-html-parser": "^1.1.11",
